@@ -60,7 +60,7 @@ var Envjs = function(){
     };
     $env.warn   = function(msg){
         if($env.logLevel >= $env.WARN) {
-            $env.log(msg,"WARNIING");    
+            $env.log(msg,"WARNING");    
         }
     };
     $env.error = function(msg, e){
