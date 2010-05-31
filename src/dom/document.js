@@ -57,9 +57,9 @@ __extend__(DOMDocument.prototype, {
     get styleSheets(){ 
         return [];/*TODO*/ 
     },
-    get all(){
-        return this.getElementsByTagName("*");
-    },
+    //get all(){
+    //    return this.getElementsByTagName("*");
+    //},
     get documentElement(){
         var i, length = this.childNodes?this.childNodes.length:0;
         for(i=0;i<length;i++){
@@ -430,8 +430,8 @@ print("xpath failure: " + e);
     getElementById : function(elementId) {
           var retNode = null,
               node;
-          // loop through all Elements in the 'all' collection
-          var all = this.all;
+          // loop through all Elements
+          var all = this.getElementsByTagName('*');
           for (var i=0; i < all.length; i++) {
             node = all[i];
             // if id matches & node is alive (ie, connected (in)directly to the documentElement)

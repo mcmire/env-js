@@ -229,8 +229,8 @@ try{
         //returns a real Array + the DOMNodeList
         var retNodes = __extend__([],new DOMNodeList(this, this.documentElement)),
           node;
-        // loop through all Elements in the 'all' collection
-        var all = this.all;
+        // loop through all Elements
+        var all = this.getElementsByTagName('*');
         for (var i=0; i < all.length; i++) {
             node = all[i];
             if (node.nodeType == DOMNode.ELEMENT_NODE && node.getAttribute('name') == name) {
