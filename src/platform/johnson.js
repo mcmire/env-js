@@ -71,73 +71,96 @@ $env.location = function(path, base){
 };
 
 $env.connection = $master.connection || function(xhr, responseHandler, data){
-    var url = Ruby.URI.parse(xhr.url);
+    var uri = Ruby.URI.parse(xhr.url);
     var connection;
     var resp;
     // print("xhr",xhr.url);
-    // print("xhr",url);
-    if ( /^file\:/.test(url) ) {
+    // print("xhr",uri);
+    if (uri.scheme == "file") {
         // experimental hack
         try {
             Ruby.eval("require 'envjs/net/cgi'");
             resp = connection = new Ruby.Envjs.Net.CGI( xhr, data );
         } catch(e) {
-        try{
-            if ( xhr.method == "PUT" ) {
-                var text =  data || "" ;
-                $env.writeToFile(text, url);
-            } else if ( xhr.method == "DELETE" ) {
-                $env.deleteFile(url);
-            } else {
-                Ruby.eval("require 'envjs/net/file'");
-                var request = new Ruby.Envjs.Net.File.Get( url.path );
-                connection = Ruby.Envjs.Net.File.start( url.host, url.port );
-                resp = connection.request( request );
-                //try to add some canned headers that make sense
-                
-                try{
-                    if(xhr.url.match(/html$/)){
-                        xhr.responseHeaders["Content-Type"] = 'text/html';
-                    }else if(xhr.url.match(/.xml$/)){
-                        xhr.responseHeaders["Content-Type"] = 'text/xml';
-                    }else if(xhr.url.match(/.js$/)){
-                        xhr.responseHeaders["Content-Type"] = 'text/javascript';
-                    }else if(xhr.url.match(/.json$/)){
-                        xhr.responseHeaders["Content-Type"] = 'application/json';
-                    }else{
-                        xhr.responseHeaders["Content-Type"] = 'text/plain';
+            try{
+                if ( xhr.method == "PUT" ) {
+                    var text =  data || "" ;
+                    $env.writeToFile(text, uri);
+                } else if ( xhr.method == "DELETE" ) {
+                    $env.deleteFile(uri);
+                } else {
+                    Ruby.eval("require 'envjs/net/file'");
+                    var request = new Ruby.Envjs.Net.File.Get( uri.path );
+                    connection = Ruby.Envjs.Net.File.start( uri.host, uri.port );
+                    resp = connection.request( request );
+                    //try to add some canned headers that make sense
+
+                    try{
+                        if(xhr.url.match(/html$/)){
+                            xhr.responseHeaders["Content-Type"] = 'text/html';
+                        }else if(xhr.url.match(/.xml$/)){
+                            xhr.responseHeaders["Content-Type"] = 'text/xml';
+                        }else if(xhr.url.match(/.js$/)){
+                            xhr.responseHeaders["Content-Type"] = 'text/javascript';
+                        }else if(xhr.url.match(/.json$/)){
+                            xhr.responseHeaders["Content-Type"] = 'application/json';
+                        }else{
+                            xhr.responseHeaders["Content-Type"] = 'text/plain';
+                        }
+                        //xhr.responseHeaders['Last-Modified'] = connection.getLastModified();
+                        //xhr.responseHeaders['Content-Length'] = headerValue+'';
+                        //xhr.responseHeaders['Date'] = new Date()+'';*/
+                    }catch(e){
+                        $env.warn('failed to load response headers',e);
                     }
-                    //xhr.responseHeaders['Last-Modified'] = connection.getLastModified();
-                    //xhr.responseHeaders['Content-Length'] = headerValue+'';
-                    //xhr.responseHeaders['Date'] = new Date()+'';*/
-                }catch(e){
-                    $env.warn('failed to load response headers',e);
+
                 }
-                
+            } catch (e) {
+                connection = null;
+                xhr.readyState = 4;
+                if(e.toString().match(/Errno::ENOENT/)) {
+                    xhr.status = "404";
+                    xhr.statusText = "Not Found";
+                    xhr.responseText = undefined;
+                } else {
+                    xhr.status = "500";
+                    xhr.statusText = "Local File Protocol Error";
+                    xhr.responseText = "<html><head/><body><p>"+ e+ "</p></body></html>";
+                }
             }
-        } catch (e) {
-            connection = null;
-            xhr.readyState = 4;
-            if(e.toString().match(/Errno::ENOENT/)) {
-                xhr.status = "404";
-                xhr.statusText = "Not Found";
-                xhr.responseText = undefined;
-            } else {
-                xhr.status = "500";
-                xhr.statusText = "Local File Protocol Error";
-                xhr.responseText = "<html><head/><body><p>"+ e+ "</p></body></html>";
-            }
-        }
         }
     } else { 
+        Ruby.eval("require 'envjs/httpclient'");
+
+        //$env.warn("xhr.method: " + xhr.method);
+        //$env.warn("uri: " + xhr.url);
+        //$env.warn("data: " + (data || null));
+        //$env.warn("headers:");
+        //for (k in xhr.headers) {
+        //    $env.warn(k + " => " + xhr.headers[k]);
+        //}
+        
+        try {
+            connection = new Ruby.Envjs.HTTPClient;
+            var headers = new Ruby.Hash;
+            for (k in xhr.headers) headers[k] = xhr.headers[k];
+            resp = connection.request(xhr.method, xhr.url, null, (data || null), headers);
+            //throw "ok great";
+        } catch(e) {
+            $env.warn("XHR net request failed: "+e);
+            // FIX: do the on error stuff ...
+            throw e;
+        }
+        
+        /*
         Ruby.eval("require 'net/http'");
 
         var req;
         var path;
         try {
-            path = url.request_uri();
+            path = uri.request_uri();
         } catch(e) {
-            path = url.path;
+            path = uri.path;
         }
         if ( xhr.method == "GET" ) {
             req = new Ruby.Net.HTTP.Get( path );
@@ -150,49 +173,66 @@ $env.connection = $master.connection || function(xhr, responseHandler, data){
         for (var header in xhr.headers){
             $master.add_req_field( req, header, xhr.headers[header] );
         }
-	
-	//write data to output stream if required
+
+        //write data to output stream if required
         if(data&&data.length&&data.length>0){
-	    if ( xhr.method == "PUT" || xhr.method == "POST" ) {
+            if ( xhr.method == "PUT" || xhr.method == "POST" ) {
                 Ruby.eval("lambda { |req,data| req.body = data}").call(req,data);
                 // req.body = data;
             }
-	}
-	
+        }
+
         try {
-            connection = Ruby.Net.HTTP.start( url.host, url.port );
+            connection = Ruby.Net.HTTP.new( uri.host, uri.port );
+            if (uri.scheme == 'https') {
+                $env.debug("Using SSL");
+                connection.use_ssl = true;
+                // Borrowed from http://redcorundum.blogspot.com/2008/03/ssl-certificates-and-nethttps.html
+                var caPaths = ["/usr/share/curl", "/etc/ssl/certs"];
+                var caPath;
+                for (var i=0, len=caPaths.length; i<len-1; i++) {
+                    if (Ruby.File["directory?"](caPaths[i])) {
+                        caPath = caPaths[i];
+                        break;
+                    }
+                }
+                if (caPath) {
+                    $env.debug("Using VERIFY_PEER");
+                    connection.ca_path = caPath;
+                    connection.verify_mode = Ruby.OpenSSL.SSL.VERIFY_PEER;
+                    connection.verify_depth = 5;
+                } else {
+                    $env.debug("Using VERIFY_NONE");
+                    connection.verify_mode = Ruby.OpenSSL.SSL.VERIFY_NONE;
+                }
+            }
+            connection.start();
             resp = connection.request(req);
         } catch(e) {
             $env.warn("XHR net request failed: "+e);
             // FIX: do the on error stuff ...
             throw e;
         }
-
+        */
     }
     if(connection){
         try{
-            if (false) {
-            var respheadlength = connection.getHeaderFields().size();
-            // Stick the response headers into responseHeaders
-            for (var i = 0; i < respheadlength; i++) { 
-                var headerName = connection.getHeaderFieldKey(i); 
-                var headerValue = connection.getHeaderField(i); 
-                if (headerName)
-                    xhr.responseHeaders[headerName+''] = headerValue+'';
-            }
-            }
             resp.each(function(k,v){
                 xhr.responseHeaders[k] = v;
             });
+            // httpclient has a 'Location'. I guess net/http has a 'location'?
+            if (xhr.responseHeaders.Location) xhr.responseHeaders.location = xhr.responseHeaders.Location;
         }catch(e){
             $env.error('failed to load response headers: '+e);
             throw e;
         }
-        
+
         xhr.readyState = 4;
-        xhr.status = parseInt(resp.code,10) || 0;
+        //var code = resp.code;
+        var code = resp.code(); // only for httpclient
+        xhr.status = parseInt(code,10) || 0;
         xhr.statusText = connection.responseMessage || "";
-        
+
         var contentEncoding = resp["Content-Encoding"] || "utf-8",
         baos = new Ruby.StringIO,
         length,
@@ -202,21 +242,23 @@ $env.connection = $master.connection || function(xhr, responseHandler, data){
         try{
             var lower = contentEncoding.toLowerCase();
             stream = ( lower == "gzip" || lower == "decompress" ) ?
-                ( Ruby.raise("java") && new java.util.zip.GZIPInputStream(resp.getInputStream()) ) : resp;
+            ( Ruby.raise("java") && new java.util.zip.GZIPInputStream(resp.getInputStream()) ) : resp;
         }catch(e){
             if (resp.code == "404")
-                $env.info('failed to open connection stream \n' +
-                          e.toString(), e);
+            $env.info('failed to open connection stream \n' +
+            e.toString(), e);
             else
-                $env.error('failed to open connection stream \n' +
-                           e.toString(), e);
+            $env.error('failed to open connection stream \n' +
+            e.toString(), e);
             stream = resp;
         }
-        
-        baos.write(resp.body);
+
+        var body = resp.body;
+        body = body.content(); // only for httpclient
+        baos.write(body);
 
         baos.close();
-        connection.finish();
+        if (connection.finish) connection.finish();
 
         xhr.responseText = baos.string();
     }

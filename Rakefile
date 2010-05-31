@@ -18,7 +18,8 @@ Hoe.spec "envjs" do
   self.readme_file              = "README.rdoc"
 
   self.extra_deps = [
-    ['johnson', '>= 2.0.0.pre3']
+    ['johnson',    '>= 2.0.0.pre3'],
+    ['httpclient', '>= 0']
   ]
 
 end
