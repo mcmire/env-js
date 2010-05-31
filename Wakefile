@@ -1,6 +1,6 @@
 # -*- mode: ruby -*-
 
-ignore "src/parser/html5*"
+# ignore "src/parser/html5*"
 
 # jslintrb "src/**/*"
 

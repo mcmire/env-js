@@ -176,6 +176,7 @@ namespace :johnson do
     system "chmod 444 lib/envjs/static.js.tmp"
     system "mv -f lib/envjs/static.js.tmp lib/envjs/static.js"
 
+    puts "Done. Files written to lib/envjs/env.js and lib/envjs/static.js."
   end
 
   desc "run tests against johnson"
