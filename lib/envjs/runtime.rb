@@ -177,13 +177,38 @@ EOJS
 
           uri_s = uri.to_s.sub %r(^file:/([^/])), 'file:///\1'
 
-          if uri.scheme == "file"
-            uri_s = uri.path
-          elsif uri.scheme == "data"
-            raise "implement 0"
+          begin
+            if uri.scheme == "https"
+              #require 'net/https'
+              #resp = Net::HTTP.start(uri.host, uri.port) do |connection|
+              #  connection.use_ssl = true
+              #  # Borrowed from http://redcorundum.blogspot.com/2008/03/ssl-certificates-and-nethttps.html
+              #  if ca_path = ["/usr/share/curl", "/etc/ssl/certs"].find {|path| File.directory?(path) }
+              #    connection.ca_path = ca_path
+              #    connection.verify_mode = OpenSSL::SSL::VERIFY_PEER
+              #    connection.verify_depth = 5
+              #  else
+              #    connection.verify_mode = OpenSSL::SSL::VERIFY_NONE
+              #  end
+              #  connection.get(uri.path)
+              #end
+              #v = resp.body
+              Kernel.require 'httpclient'
+              client = HTTPClient.new
+              v = client.get_content(f)
+            else
+              if uri.scheme == "file"
+                uri_s = uri.path
+              elsif uri.scheme == "data"
+                raise "implement 0"
+              end
+              v = open(uri_s).read
+            end
+          rescue => e
+            puts "#{e.class}: #{e.message}"
+            puts e.backtrace.join("\n")
           end
-
-          v = open(uri_s).read.gsub(/\A#!.*$/, '')
+          v.gsub!(/\A#!.*$/, '')
           loc = nil
           add_dep.call w, f
           evaluate(v, f, 1, w, w, f)
