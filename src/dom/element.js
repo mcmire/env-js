@@ -41,7 +41,7 @@ __extend__(DOMElement.prototype, {
         if (attr) {
             ret = attr.value;
         }
-        return ret; // if Attribute exists, return its value, otherwise, return null
+        return ret || ""; // if Attribute exists, return its value, otherwise, return the empty string
     },
     setAttribute : function (name, value) {
         // if attribute exists, use it
